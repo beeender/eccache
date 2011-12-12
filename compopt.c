@@ -19,63 +19,14 @@
 #include "ccache.h"
 #include "compopt.h"
 
-#define TOO_HARD         (1 << 0)
-#define TOO_HARD_DIRECT  (1 << 1)
-#define TAKES_ARG        (1 << 2)
-#define TAKES_CONCAT_ARG (1 << 3)
-#define TAKES_PATH       (1 << 4)
-#define AFFECTS_CPP      (1 << 5)
+static const struct compopt *compopts;
+static unsigned int compopts_count;
 
-struct compopt {
-	const char *name;
-	int type;
-};
-
-static const struct compopt compopts[] = {
-	{"--coverage",      TOO_HARD},
-	{"--param",         TAKES_ARG},
-	{"-A",              TAKES_ARG},
-	{"-D",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
-	{"-E",              TOO_HARD},
-	{"-F",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-G",              TAKES_ARG},
-	{"-I",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-L",              TAKES_ARG},
-	{"-M",              TOO_HARD},
-	{"-MF",             TAKES_ARG},
-	{"-MM",             TOO_HARD},
-	{"-MQ",             TAKES_ARG},
-	{"-MT",             TAKES_ARG},
-	{"-U",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
-	{"-V",              TAKES_ARG},
-	{"-Xassembler",     TAKES_ARG},
-	{"-Xlinker",        TAKES_ARG},
-	{"-Xpreprocessor",  TOO_HARD_DIRECT | TAKES_ARG},
-	{"-aux-info",       TAKES_ARG},
-	{"-b",              TAKES_ARG},
-	{"-fbranch-probabilities", TOO_HARD},
-	{"-fprofile-arcs",  TOO_HARD},
-	{"-fprofile-generate", TOO_HARD},
-	{"-fprofile-use",   TOO_HARD},
-	{"-frepo",          TOO_HARD},
-	{"-ftest-coverage", TOO_HARD},
-	{"-idirafter",      AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iframework",     AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-imacros",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-imultilib",      AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-include",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-install_name",   TAKES_ARG}, /* Darwin linker option */
-	{"-iprefix",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iquote",         AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-isysroot",       AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-isystem",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iwithprefix",    AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iwithprefixbefore", AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-nostdinc",       AFFECTS_CPP},
-	{"-nostdinc++",     AFFECTS_CPP},
-	{"-save-temps",     TOO_HARD},
-	{"-u",              TAKES_ARG},
-};
+void init_compopts(const struct compopt *compopts_in, unsigned int compots_c)
+{ 
+	compopts = compopts_in;
+	compopts_count = compots_c;
+}
 
 static int
 compare_compopts(const void *key1, const void *key2)
@@ -91,7 +42,7 @@ find(const char *option)
 	struct compopt key;
 	key.name = option;
 	return bsearch(
-		&key, compopts, sizeof(compopts) / sizeof(compopts[0]),
+		&key, compopts, compopts_count,
 		sizeof(compopts[0]), compare_compopts);
 }
 
@@ -110,7 +61,7 @@ bool
 compopt_verify_sortedness(void)
 {
 	size_t i;
-	for (i = 1; i < sizeof(compopts)/sizeof(compopts[0]); i++) {
+	for (i = 1; i < compopts_count; i++) {
 		if (strcmp(compopts[i-1].name, compopts[i].name) >= 0) {
 			fprintf(stderr,
 			        "compopt_verify_sortedness: %s >= %s\n",
