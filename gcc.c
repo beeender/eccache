@@ -15,6 +15,8 @@ extern bool output_is_precompiled_header;
 extern bool direct_i_file;
 extern const char *i_extension;
 
+const char* gcc_name[] = {"gcc", "g++", NULL};
+
 static const struct compopt gcc_compopts[] = {
 	{"--coverage",      TOO_HARD},
 	{"--param",         TAKES_ARG},
@@ -61,6 +63,11 @@ static const struct compopt gcc_compopts[] = {
 	{"-u",              TAKES_ARG},
 };
 
+void gcc_init_entry()
+{ 
+	init_compopts(gcc_compopts, sizeof(gcc_compopts)/sizeof(gcc_compopts[0]));
+}
+
 /*
  * Process the compiler options into options suitable for passing to the
  * preprocessor and the real compiler. The preprocessor options don't include
@@ -89,9 +96,6 @@ cc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	int argc = orig_args->argc;
 	char **argv = orig_args->argv;
 	bool result = true;
-
-	/*TODO: Move to ccache.c */
-	init_compopts(gcc_compopts, sizeof(gcc_compopts)/sizeof(gcc_compopts[0]));
 
 	stripped_args = args_init(0, NULL);
 	dep_args = args_init(0, NULL);

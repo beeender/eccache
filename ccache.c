@@ -205,6 +205,14 @@ enum fromcache_call_mode {
  */
 static const char HASH_PREFIX[] = "3";
 
+static struct compiler_entry compiler_entries[] = { 
+	{gcc_name, gcc_init_entry},
+};
+/* Current compiler entry. 
+ * This is determined by the executable compiler file name.*/
+#define COMPILER_ENTRY_EMPTY ((unsigned int)(0-1))
+static unsigned int cur_comp_entry = COMPILER_ENTRY_EMPTY;
+
 /* Something went badly wrong - just execute the real compiler. */
 static void
 failed(void)
@@ -1269,6 +1277,8 @@ ccache(int argc, char *argv[])
 	struct mdfour common_hash;
 	struct mdfour direct_hash;
 	struct mdfour cpp_hash;
+	char *compiler_name;
+	unsigned int i;
 
 	/* Arguments (except -E) to send to the preprocessor. */
 	struct args *preprocessor_args;
@@ -1277,6 +1287,26 @@ ccache(int argc, char *argv[])
 	struct args *compiler_args;
 
 	find_compiler(argc, argv);
+
+	/* Choose the right compiler by the executable file name. */
+	compiler_name = basename(orig_args->argv[0]);
+	for(i=0; i<sizeof(compiler_entries)/sizeof(compiler_entries[0]); i++) { 
+		int j=0;
+		while(compiler_entries[i].name[j]) { 
+			if(str_eq(compiler_entries[i].name[j], compiler_name)) { 
+				cur_comp_entry = i;
+			}
+			j++;
+		}
+	}
+	free(compiler_name);
+	if(cur_comp_entry == COMPILER_ENTRY_EMPTY) { /* This compiler is not supported. */
+		/* For the auto test. */
+		cc_log("Compiler produced stdout");
+		stats_update(STATS_STDOUT);
+		failed();
+	}
+	compiler_entries[cur_comp_entry].init_entry();
 
 	if (getenv("CCACHE_DISABLE")) {
 		cc_log("ccache is disabled");
@@ -1647,3 +1677,5 @@ ccache_main(int argc, char *argv[])
 	ccache(argc, argv);
 	return 1;
 }
+
+
