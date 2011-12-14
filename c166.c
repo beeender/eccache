@@ -18,14 +18,12 @@ extern const char *i_extension;
 const char* c166_name[] = {"cc166", NULL};
 
 static const struct compopt c166_compopts[] = {
-	{"-B",				AFFECTS_CPP | TAKES_ARG},
 	{"-D",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
 	{"-E",				TOO_HARD},
 	{"-H",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
 	{"-I",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-M",				AFFECTS_CPP | TAKES_ARG},
-	{"-O",				AFFECTS_CPP | TAKES_ARG},
 	{"-T",				AFFECTS_CPP | TAKES_ARG},
+	{"-U",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
 	{"-Wa",				TAKES_ARG},
 	{"-Wc",				TAKES_ARG},
 	{"-Wcp",			TAKES_ARG},
@@ -41,13 +39,19 @@ static const struct compopt c166_compopts[] = {
 	{"-cp",				TOO_HARD},
 	{"-cprep",			TOO_HARD}, /*Not support for now. Maybe future.*/
 	{"-cs",				TOO_HARD},
+	{"-e",				TOO_HARD}, 
+	{"-err",			TOO_HARD}, 
+	{"-exit",			TOO_HARD}, 
 	{"-f",				TOO_HARD}, /*Not support for now. Maybe future.*/
-	{"-gs",				TOO_HARD},
+	{"-gso",			TOO_HARD},
 	{"-ieee",			TOO_HARD},
 	{"-ihex",			TOO_HARD},
 	{"-lib",			TAKES_ARG},
 	{"-m",              AFFECTS_CPP | TAKES_ARG},
-	{"-s",              AFFECTS_CPP },
+	{"-n",				TOO_HARD},
+ 	/* Actually the -s doesn't do anything when the cc166 invoked.
+	 * It will only take effect while invoking c166. */
+	/* {"-s",              AFFECTS_CPP }, */
 	{"-srec",			TOO_HARD},
 	{"-tmp",			TOO_HARD},
 	{"-v",				TOO_HARD},
@@ -73,9 +77,7 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	int i;
 	bool found_c_opt = false;
 	bool found_S_opt = false;
-	bool found_arch_opt = false;
 	bool found_pch = false;
-	bool found_fpch_preprocess = false;
 	/* 0: Choose preprocessor type by the file extension.
 	 * 1: Use c preprocessor.
 	 * 2: Use c++ preprocessor.*/
