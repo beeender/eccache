@@ -202,13 +202,14 @@ void lockfile_release(const char *path);
 /* ------------------------------------------------------------------------- */
 /* ccache.c */
 typedef void (*init_entry_fn)();
+typedef bool (*cc_process_args_fn)(struct args *orig_args, struct args **preprocessor_args,
+		struct args **compiler_args);
 struct compiler_entry { 
 	const char** name;
 	init_entry_fn init_entry;
+	cc_process_args_fn cc_process_args;
 };
 
-bool cc_process_args(struct args *orig_args, struct args **preprocessor_args,
-                    struct args **compiler_args);
 void cc_reset(void);
 bool is_precompiled_header(const char *path);
 char * make_relative_path(char *path);
@@ -217,6 +218,12 @@ char * make_relative_path(char *path);
 /* compilers */
 extern const char* gcc_name[];
 void gcc_init_entry();
+bool gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
+                struct args **compiler_args);
+extern const char* c166_name[];
+void c166_init_entry();
+bool c166_process_args(struct args *orig_args, struct args **preprocessor_args,
+                struct args **compiler_args);
 
 /* ------------------------------------------------------------------------- */
 

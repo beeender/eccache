@@ -206,7 +206,8 @@ enum fromcache_call_mode {
 static const char HASH_PREFIX[] = "3";
 
 static struct compiler_entry compiler_entries[] = { 
-	{gcc_name, gcc_init_entry},
+	{gcc_name, gcc_init_entry, gcc_process_args},
+	{c166_name, c166_init_entry, c166_process_args},
 };
 /* Current compiler entry. 
  * This is determined by the executable compiler file name.*/
@@ -1344,7 +1345,8 @@ ccache(int argc, char *argv[])
 		if (nlevels > 8) nlevels = 8;
 	}
 
-	if (!cc_process_args(orig_args, &preprocessor_args, &compiler_args)) {
+	if (!compiler_entries[cur_comp_entry].cc_process_args(orig_args,
+				&preprocessor_args, &compiler_args)) {
 		failed();
 	}
 

@@ -15,57 +15,36 @@ extern bool output_is_precompiled_header;
 extern bool direct_i_file;
 extern const char *i_extension;
 
-const char* gcc_name[] = {"gcc", "g++", NULL};
+const char* c166_name[] = {"cc166", NULL};
 
-static const struct compopt gcc_compopts[] = {
-	{"--coverage",      TOO_HARD},
-	{"--param",         TAKES_ARG},
-	{"-A",              TAKES_ARG},
-	{"-D",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
-	{"-E",              TOO_HARD},
-	{"-F",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-G",              TAKES_ARG},
-	{"-I",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-L",              TAKES_ARG},
-	{"-M",              TOO_HARD},
-	{"-MF",             TAKES_ARG},
-	{"-MM",             TOO_HARD},
-	{"-MQ",             TAKES_ARG},
-	{"-MT",             TAKES_ARG},
-	{"-U",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
-	{"-V",              TAKES_ARG},
-	{"-Xassembler",     TAKES_ARG},
-	{"-Xlinker",        TAKES_ARG},
-	{"-Xpreprocessor",  TOO_HARD_DIRECT | TAKES_ARG},
-	{"-aux-info",       TAKES_ARG},
-	{"-b",              TAKES_ARG},
-	{"-fbranch-probabilities", TOO_HARD},
-	{"-fprofile-arcs",  TOO_HARD},
-	{"-fprofile-generate", TOO_HARD},
-	{"-fprofile-use",   TOO_HARD},
-	{"-frepo",          TOO_HARD},
-	{"-ftest-coverage", TOO_HARD},
-	{"-idirafter",      AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iframework",     AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-imacros",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-imultilib",      AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-include",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-install_name",   TAKES_ARG}, /* Darwin linker option */
-	{"-iprefix",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iquote",         AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-isysroot",       AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-isystem",        AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iwithprefix",    AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-iwithprefixbefore", AFFECTS_CPP | TAKES_ARG | TAKES_PATH},
-	{"-nostdinc",       AFFECTS_CPP},
-	{"-nostdinc++",     AFFECTS_CPP},
-	{"-save-temps",     TOO_HARD},
-	{"-u",              TAKES_ARG},
+static const struct compopt c166_compopts[] = {
+	{"-B",				AFFECTS_CPP | TAKES_ARG},
+	{"-D",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
+	{"-E",				TOO_HARD},
+	{"-H",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
+	{"-I",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
+	{"-M",				AFFECTS_CPP | TAKES_ARG},
+	{"-O",				AFFECTS_CPP | TAKES_ARG},
+	{"-T",				AFFECTS_CPP | TAKES_ARG},
+	{"-Wa",				TAKES_ARG},
+	{"-Wc",				TAKES_ARG},
+	{"-Wcp",			TAKES_ARG},
+	{"-Wf",				TAKES_ARG},
+	/*{"-Wl",			TAKES_ARG},*/
+	{"-Wm",				AFFECTS_CPP | TAKES_ARG},
+	/*{"-Wo",			TAKES_ARG}*/
+	/*{"-Wpl",			TAKES_ARG},*/
+	{}
+	{"-m",              AFFECTS_CPP | TAKES_ARG},
+	{"-s",              AFFECTS_CPP },
+	{"-w",              AFFECTS_CPP | TAKES_ARG},
+	{"-x",              AFFECTS_CPP | TAKES_ARG},
+	{"-z",              AFFECTS_CPP | TAKES_ARG},
 };
 
-void gcc_init_entry()
+void c166_init_entry()
 { 
-	init_compopts(gcc_compopts, sizeof(gcc_compopts)/sizeof(gcc_compopts[0]));
+	init_compopts(c166_compopts, sizeof(c166_compopts)/sizeof(c166_compopts[0]));
 }
 
 /*
@@ -74,7 +53,7 @@ void gcc_init_entry()
  * -E; this is added later. Returns true on success, otherwise false.
  */
 bool
-gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
+c166_process_args(struct args *orig_args, struct args **preprocessor_args,
                 struct args **compiler_args)
 {
 	int i;
@@ -83,6 +62,10 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	bool found_arch_opt = false;
 	bool found_pch = false;
 	bool found_fpch_preprocess = false;
+	/* 0: Choose preprocessor type by the file extension.
+	 * 1: Use c preprocessor.
+	 * 2: Use c++ preprocessor.*/
+	unsigned force_preprocessor_type = 0;
 	const char *explicit_language = NULL; /* As specified with -x. */
 	const char *file_language;            /* As deduced from file extension. */
 	const char *actual_language;          /* Language to actually use. */
@@ -123,9 +106,7 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		}
 
 		/* These are always too hard. */
-		if (compopt_too_hard(argv[i])
-		    || str_startswith(argv[i], "@")
-		    || str_startswith(argv[i], "-fdump-")) {
+		if (compopt_too_hard(argv[i])) {
 			cc_log("Compiler option %s is unsupported", argv[i]);
 			stats_update(STATS_UNSUPPORTED);
 			result = false;
@@ -140,22 +121,6 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 			}
 		}
 
-		/* Multiple -arch options are too hard. */
-		if (str_eq(argv[i], "-arch")) {
-			if (found_arch_opt) {
-				cc_log("More than one -arch compiler option is unsupported");
-				stats_update(STATS_UNSUPPORTED);
-				result = false;
-				goto out;
-			} else {
-				found_arch_opt = true;
-			}
-		}
-
-		if (str_eq(argv[i], "-fpch-preprocess")) {
-			found_fpch_preprocess = true;
-		}
-
 		/* we must have -c */
 		if (str_eq(argv[i], "-c")) {
 			args_add(stripped_args, argv[i]);
@@ -164,35 +129,13 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		}
 
 		/* -S changes the default extension */
+		/* TODO: Check this -S out!
 		if (str_eq(argv[i], "-S")) {
 			args_add(stripped_args, argv[i]);
 			found_S_opt = true;
 			continue;
 		}
-
-		/*
-		 * Special handling for -x: remember the last specified language before the
-		 * input file and strip all -x options from the arguments.
-		 */
-		if (str_eq(argv[i], "-x")) {
-			if (i == argc-1) {
-				cc_log("Missing argument to %s", argv[i]);
-				stats_update(STATS_ARGS);
-				result = false;
-				goto out;
-			}
-			if (!input_file) {
-				explicit_language = argv[i+1];
-			}
-			i++;
-			continue;
-		}
-		if (str_startswith(argv[i], "-x")) {
-			if (!input_file) {
-				explicit_language = &argv[i][2];
-			}
-			continue;
-		}
+		*/
 
 		/* we need to work out where the output was meant to go */
 		if (str_eq(argv[i], "-o")) {
@@ -218,116 +161,6 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		*/
 		if (str_startswith(argv[i], "-g")) {
 			args_add(stripped_args, argv[i]);
-			if (enable_unify && !str_eq(argv[i], "-g0")) {
-				cc_log("%s used; disabling unify mode", argv[i]);
-				enable_unify = false;
-			}
-			if (str_eq(argv[i], "-g3")) {
-				/*
-				 * Fix for bug 7190 ("commandline macros (-D)
-				 * have non-zero lineno when using -g3").
-				 */
-				cc_log("%s used; not compiling preprocessed code", argv[i]);
-				compile_preprocessed_source_code = false;
-			}
-			continue;
-		}
-
-		/* These options require special handling, because they
-		   behave differently with gcc -E, when the output
-		   file is not specified. */
-		if (str_eq(argv[i], "-MD") || str_eq(argv[i], "-MMD")) {
-			generating_dependencies = true;
-			args_add(dep_args, argv[i]);
-			continue;
-		}
-		if (str_startswith(argv[i], "-MF")) {
-			char *arg;
-			dependency_filename_specified = true;
-			free(output_dep);
-			args_add(dep_args, argv[i]);
-			if (strlen(argv[i]) == 3) {
-				/* -MF arg */
-				if (i >= argc - 1) {
-					cc_log("Missing argument to %s", argv[i]);
-					stats_update(STATS_ARGS);
-					result = false;
-					goto out;
-				}
-				arg = argv[i + 1];
-				args_add(dep_args, argv[i + 1]);
-				i++;
-			} else {
-				/* -MFarg */
-				arg = &argv[i][3];
-			}
-			output_dep = make_relative_path(x_strdup(arg));
-			continue;
-		}
-		if (str_startswith(argv[i], "-MQ") || str_startswith(argv[i], "-MT")) {
-			args_add(dep_args, argv[i]);
-			if (strlen(argv[i]) == 3) {
-				/* -MQ arg or -MT arg */
-				if (i >= argc - 1) {
-					cc_log("Missing argument to %s", argv[i]);
-					stats_update(STATS_ARGS);
-					result = false;
-					goto out;
-				}
-				args_add(dep_args, argv[i + 1]);
-				i++;
-				/*
-				 * Yes, that's right. It's strange, but apparently, GCC behaves
-				 * differently for -MT arg and -MTarg (and similar for -MQ): in the
-				 * latter case, but not in the former, an implicit dependency for the
-				 * object file is added to the dependency file.
-				 */
-				dependency_target_specified = true;
-			}
-			continue;
-		}
-		if (str_startswith(argv[i], "--sysroot=")) {
-			char *relpath = make_relative_path(x_strdup(argv[i] + 10));
-			char *option = format("--sysroot=%s", relpath);
-			args_add(stripped_args, option);
-			free(relpath);
-			free(option);
-			continue;
-		}
-		if (str_startswith(argv[i], "-Wp,")) {
-			if (str_startswith(argv[i], "-Wp,-MD,") && !strchr(argv[i] + 8, ',')) {
-				generating_dependencies = true;
-				dependency_filename_specified = true;
-				free(output_dep);
-				output_dep = make_relative_path(x_strdup(argv[i] + 8));
-				args_add(dep_args, argv[i]);
-				continue;
-			} else if (str_startswith(argv[i], "-Wp,-MMD,")
-			           && !strchr(argv[i] + 9, ',')) {
-				generating_dependencies = true;
-				dependency_filename_specified = true;
-				free(output_dep);
-				output_dep = make_relative_path(x_strdup(argv[i] + 9));
-				args_add(dep_args, argv[i]);
-				continue;
-			} else if (enable_direct) {
-				/*
-				 * -Wp, can be used to pass too hard options to
-				 * the preprocessor. Hence, disable direct
-				 * mode.
-				 */
-				cc_log("Unsupported compiler option for direct mode: %s", argv[i]);
-				enable_direct = false;
-			}
-		}
-		if (str_eq(argv[i], "-MP")) {
-			args_add(dep_args, argv[i]);
-			continue;
-		}
-
-		/* Input charset needs to be handled specially. */
-		if (str_startswith(argv[i], "-finput-charset=")) {
-			input_charset = argv[i];
 			continue;
 		}
 
@@ -337,9 +170,9 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		 * is that paths in the standard error output produced by the
 		 * compiler will be normalized.
 		 */
+			fprintf(stderr, "here %s, %d, %d\n", argv[i], argc, i);
 		if (compopt_takes_path(argv[i])) {
 			char *relpath;
-			char *pchpath;
 			if (i == argc-1) {
 				cc_log("Missing argument to %s", argv[i]);
 				stats_update(STATS_ARGS);
@@ -351,14 +184,6 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 			relpath = make_relative_path(x_strdup(argv[i+1]));
 			args_add(stripped_args, relpath);
 
-			/* Try to be smart about detecting precompiled headers */
-			pchpath = format("%s.gch", argv[i+1]);
-			if (stat(pchpath, &st) == 0) {
-				cc_log("Detected use of precompiled header: %s", pchpath);
-				found_pch = true;
-			}
-
-			free(pchpath);
 			free(relpath);
 			i++;
 			continue;
@@ -393,6 +218,15 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		/* other options */
 		if (argv[i][0] == '-') {
 			args_add(stripped_args, argv[i]);
+			continue;
+		}
+
+		if (str_eq(argv[i], "-c++")) {
+			force_preprocessor_type = 2;
+			continue;
+		}
+		if (str_eq(argv[i], "-noc++")) {
+			force_preprocessor_type = 1;
 			continue;
 		}
 
@@ -436,18 +270,6 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		goto out;
 	}
 
-	if (found_pch || found_fpch_preprocess) {
-		using_precompiled_header = true;
-		if (!(sloppiness & SLOPPY_TIME_MACROS)) {
-			cc_log("You have to specify \"time_macros\" sloppiness when using"
-			       " precompiled headers to get direct hits");
-			cc_log("Disabling direct mode");
-			stats_update(STATS_CANTUSEPCH);
-			result = false;
-			goto out;
-		}
-	}
-
 	if (explicit_language && str_eq(explicit_language, "none")) {
 		explicit_language = NULL;
 	}
@@ -463,7 +285,7 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	} else {
 		actual_language = file_language;
 	}
-
+	
 	output_is_precompiled_header =
 		actual_language && strstr(actual_language, "-header") != NULL;
 
@@ -594,6 +416,12 @@ gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		}
 	} else {
 		*compiler_args = args_copy(*preprocessor_args);
+	}
+
+	/* Due to bugs or cc166 v8.6r3, the behaviours of c/c++ preprocessor */
+	if(force_preprocessor_type != 2)
+	{ 
+		args_add(*preprocessor_args, "-o/dev/stdout");
 	}
 
 	/*
