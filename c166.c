@@ -30,14 +30,28 @@ static const struct compopt c166_compopts[] = {
 	{"-Wc",				TAKES_ARG},
 	{"-Wcp",			TAKES_ARG},
 	{"-Wf",				TAKES_ARG},
-	/*{"-Wl",			TAKES_ARG},*/
+	{"-Wl",				TAKES_ARG},
 	{"-Wm",				AFFECTS_CPP | TAKES_ARG},
-	/*{"-Wo",			TAKES_ARG}*/
-	/*{"-Wpl",			TAKES_ARG},*/
-	{}
+	{"-Wo",				TAKES_ARG},
+	{"-Wpl",			TAKES_ARG},
+	{"-cc",				TOO_HARD},
+	{"-cf",				TOO_HARD},
+	{"-cl",				TOO_HARD},
+	{"-cm",				TOO_HARD}, /*TODO:Invoke muncher? Investigate more.*/
+	{"-cp",				TOO_HARD},
+	{"-cprep",			TOO_HARD}, /*Not support for now. Maybe future.*/
+	{"-cs",				TOO_HARD},
+	{"-f",				TOO_HARD}, /*Not support for now. Maybe future.*/
+	{"-gs",				TOO_HARD},
+	{"-ieee",			TOO_HARD},
+	{"-ihex",			TOO_HARD},
+	{"-lib",			TAKES_ARG},
 	{"-m",              AFFECTS_CPP | TAKES_ARG},
 	{"-s",              AFFECTS_CPP },
-	{"-w",              AFFECTS_CPP | TAKES_ARG},
+	{"-srec",			TOO_HARD},
+	{"-tmp",			TOO_HARD},
+	{"-v",				TOO_HARD},
+	{"-v0",				TOO_HARD},
 	{"-x",              AFFECTS_CPP | TAKES_ARG},
 	{"-z",              AFFECTS_CPP | TAKES_ARG},
 };
@@ -66,6 +80,7 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 * 1: Use c preprocessor.
 	 * 2: Use c++ preprocessor.*/
 	unsigned force_preprocessor_type = 0;
+	bool use_cpp_preprocessor = false;
 	const char *explicit_language = NULL; /* As specified with -x. */
 	const char *file_language;            /* As deduced from file extension. */
 	const char *actual_language;          /* Language to actually use. */
@@ -170,7 +185,6 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 		 * is that paths in the standard error output produced by the
 		 * compiler will be normalized.
 		 */
-			fprintf(stderr, "here %s, %d, %d\n", argv[i], argc, i);
 		if (compopt_takes_path(argv[i])) {
 			char *relpath;
 			if (i == argc-1) {
@@ -417,11 +431,30 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	} else {
 		*compiler_args = args_copy(*preprocessor_args);
 	}
-
-	/* Due to bugs or cc166 v8.6r3, the behaviours of c/c++ preprocessor */
-	if(force_preprocessor_type != 2)
+	
+	/* Due to bugs or cc166 v8.6r3, the behaviours of c/c++ preprocessor 
+	 * are quite different.
+	 * When using cpp preprocessor, the output will be directly send to stdout like gcc.
+	 * When using c preprocessor, the output will be written to filename.i even without "-o".*/
+	if(str_eq(actual_language, "c++"))
 	{ 
+		use_cpp_preprocessor = true;
+	} 
+	if(force_preprocessor_type == 1)
+	{ 
+		use_cpp_preprocessor = false;
+	}
+	else if(force_preprocessor_type == 2)
+	{ 
+		use_cpp_preprocessor = true;
+	}
+	if(!use_cpp_preprocessor)
+	{ 
+#ifdef _WIN32
+#error Never test this in Windows.
+#else
 		args_add(*preprocessor_args, "-o/dev/stdout");
+#endif
 	}
 
 	/*
