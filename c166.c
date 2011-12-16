@@ -85,7 +85,6 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	bool use_cpp_preprocessor = false;
 	const char *file_language;            /* As deduced from file extension. */
 	const char *actual_language;          /* Language to actually use. */
-	const char *input_charset = NULL;
 	struct stat st;
 	/* is the dependency makefile name overridden with -MF? */
 	bool dependency_filename_specified = false;
@@ -371,14 +370,8 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	/*
 	 * Some options shouldn't be passed to the real compiler when it compiles
 	 * preprocessed code:
-	 *
-	 * -finput-charset=XXX (otherwise conversion happens twice)
-	 * -x XXX (otherwise the wrong language is selected)
 	 */
 	*preprocessor_args = args_copy(stripped_args);
-	if (input_charset) {
-		args_add(*preprocessor_args, input_charset);
-	}
 	if (found_pch) {
 		args_add(*preprocessor_args, "-fpch-preprocess");
 	}
