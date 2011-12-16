@@ -83,7 +83,6 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 * 2: Use c++ preprocessor.*/
 	unsigned force_preprocessor_type = 0;
 	bool use_cpp_preprocessor = false;
-	const char *explicit_language = NULL; /* As specified with -x. */
 	const char *file_language;            /* As deduced from file extension. */
 	const char *actual_language;          /* Language to actually use. */
 	const char *input_charset = NULL;
@@ -178,6 +177,10 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 		*/
 		if (str_startswith(argv[i], "-g")) {
 			args_add(stripped_args, argv[i]);
+			if (enable_unify) {
+				cc_log("%s used; disabling unify mode", argv[i]);
+				enable_unify = false;
+			}
 			continue;
 		}
 
@@ -286,21 +289,8 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 		goto out;
 	}
 
-	if (explicit_language && str_eq(explicit_language, "none")) {
-		explicit_language = NULL;
-	}
 	file_language = language_for_file(input_file);
-	if (explicit_language) {
-		if (!language_is_supported(explicit_language)) {
-			cc_log("Unsupported language: %s", explicit_language);
-			stats_update(STATS_SOURCELANG);
-			result = false;
-			goto out;
-		}
-		actual_language = explicit_language;
-	} else {
-		actual_language = file_language;
-	}
+	actual_language = file_language;
 	
 	output_is_precompiled_header =
 		actual_language && strstr(actual_language, "-header") != NULL;
@@ -392,10 +382,6 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	if (found_pch) {
 		args_add(*preprocessor_args, "-fpch-preprocess");
 	}
-	if (explicit_language) {
-		args_add(*preprocessor_args, "-x");
-		args_add(*preprocessor_args, explicit_language);
-	}
 
 	/*
 	 * Add flags for dependency generation only to the preprocessor command line.
@@ -421,15 +407,6 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 
 	if (compile_preprocessed_source_code) {
 		*compiler_args = args_copy(stripped_args);
-		if (explicit_language) {
-			/*
-			 * Workaround for a bug in Apple's patched distcc -- it doesn't properly
-			 * reset the language specified with -x, so if -x is given, we have to
-			 * specify the preprocessed language explicitly.
-			 */
-			args_add(*compiler_args, "-x");
-			args_add(*compiler_args, p_language_for_language(explicit_language));
-		}
 	} else {
 		*compiler_args = args_copy(*preprocessor_args);
 	}
