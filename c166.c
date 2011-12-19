@@ -80,7 +80,6 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 * 1: Use c preprocessor.
 	 * 2: Use c++ preprocessor.*/
 	unsigned force_preprocessor_type = 0;
-	bool use_cpp_preprocessor = false;
 	const char *file_language;            /* As deduced from file extension. */
 	const char *actual_language;          /* Language to actually use. */
 	struct stat st;
@@ -239,18 +238,20 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 			continue;
 		}
 
-		/* other options */
-		if (argv[i][0] == '-') {
-			args_add(stripped_args, argv[i]);
-			continue;
-		}
-
 		if (str_eq(argv[i], "-c++")) {
 			force_preprocessor_type = 2;
+			args_add(stripped_args, argv[i]);
 			continue;
 		}
 		if (str_eq(argv[i], "-noc++")) {
 			force_preprocessor_type = 1;
+			args_add(stripped_args, argv[i]);
+			continue;
+		}
+
+		/* other options */
+		if (argv[i][0] == '-') {
+			args_add(stripped_args, argv[i]);
 			continue;
 		}
 
@@ -295,7 +296,15 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	}
 
 	file_language = language_for_file(input_file);
-	actual_language = file_language;
+	if(force_preprocessor_type == 0) { 
+		actual_language = file_language;
+	} 
+	else if(force_preprocessor_type == 2) { 
+		actual_language = "c++";
+	}
+	else {
+		actual_language = "c";
+	}
 	
 	output_is_precompiled_header =
 		actual_language && strstr(actual_language, "-header") != NULL;
@@ -432,19 +441,7 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 * are quite different.
 	 * When using cpp preprocessor, the output will be directly send to stdout like gcc.
 	 * When using c preprocessor, the output will be written to filename.i even without "-o".*/
-	if(str_eq(actual_language, "c++"))
-	{ 
-		use_cpp_preprocessor = true;
-	} 
-	if(force_preprocessor_type == 1)
-	{ 
-		use_cpp_preprocessor = false;
-	}
-	else if(force_preprocessor_type == 2)
-	{ 
-		use_cpp_preprocessor = true;
-	}
-	if(!use_cpp_preprocessor)
+	if(str_eq(actual_language, "c"))
 	{ 
 #ifdef _WIN32
 #error Never test this in Windows.
