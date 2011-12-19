@@ -20,7 +20,6 @@ const char* c166_name[] = {"cc166", NULL};
 static const struct compopt c166_compopts[] = {
 	{"-D",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
 	{"-E",				TOO_HARD},
-	{"-H",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
 	{"-I",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
 	{"-T",				AFFECTS_CPP | TAKES_ARG},
 	{"-U",				AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
@@ -35,7 +34,6 @@ static const struct compopt c166_compopts[] = {
 	{"-cc",				TOO_HARD},
 	{"-cf",				TOO_HARD},
 	{"-cl",				TOO_HARD},
-	{"-cm",				TOO_HARD}, /*TODO:Invoke muncher? Investigate more.*/
 	{"-cp",				TOO_HARD},
 	{"-cprep",			TOO_HARD}, /*Not support for now. Maybe future.*/
 	{"-cs",				TOO_HARD},
@@ -77,7 +75,7 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	int i;
 	bool found_c_opt = false;
 	bool found_S_opt = false;
-	bool found_pch = false;
+	bool found_H_opt = false;
 	/* 0: Choose preprocessor type by the file extension.
 	 * 1: Use c preprocessor.
 	 * 2: Use c++ preprocessor.*/
@@ -90,13 +88,14 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	bool dependency_filename_specified = false;
 	/* is the dependency makefile target name specified with -MT or -MQ? */
 	bool dependency_target_specified = false;
-	struct args *stripped_args = NULL, *dep_args = NULL;
+	struct args *stripped_args = NULL, *dep_args = NULL, *h_args;
 	int argc = orig_args->argc;
 	char **argv = orig_args->argv;
 	bool result = true;
 
 	stripped_args = args_init(0, NULL);
 	dep_args = args_init(0, NULL);
+	h_args = args_init(0, NULL);
 
 	args_add(stripped_args, argv[0]);
 
@@ -180,6 +179,13 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 				cc_log("%s used; disabling unify mode", argv[i]);
 				enable_unify = false;
 			}
+			continue;
+		}
+
+		if (str_startswith(argv[i], "-H")) {
+			cc_log("Detected -H %s", argv[i]);
+			args_add(h_args, argv[i]);
+			found_H_opt = true;
 			continue;
 		}
 
@@ -325,7 +331,14 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	i_extension = getenv("CCACHE_EXTENSION");
 	if (!i_extension) {
 		const char *p_language = p_language_for_language(actual_language);
-		i_extension = extension_for_language(p_language) + 1;
+		if(str_eq(p_language, "c++-cpp-output")) { 
+			/* Dirty fix for preprocessed file extension for cc166.
+			 * The cp166 cannot handle cpp files with extension ii.*/
+			i_extension = "ii.cpp";
+		}
+		else { 
+			i_extension = extension_for_language(p_language) + 1;
+		}
 	}
 
 	/* don't try to second guess the compilers heuristics for stdout handling */
@@ -372,8 +385,10 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 * preprocessed code:
 	 */
 	*preprocessor_args = args_copy(stripped_args);
-	if (found_pch) {
-		args_add(*preprocessor_args, "-fpch-preprocess");
+	/* Args with -H has been already preprocessed.
+	 * If it passed to the compiler again, some type redefined error will pop up.*/
+	if (found_H_opt) {
+		args_extend(*preprocessor_args, h_args);
 	}
 
 	/*
@@ -439,5 +454,7 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 out:
 	args_free(stripped_args);
 	args_free(dep_args);
+	args_free(h_args);
+
 	return result;
 }
