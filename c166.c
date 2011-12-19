@@ -365,8 +365,17 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 				result = false;
 				goto out;
 			}
-			p[1] = found_S_opt ? 's' : 'o';
-			p[2] = 0;
+			*p = 0;
+			p = output_obj;
+			if(found_S_opt)
+			{ 
+				output_obj = format("%s.s", p);
+			}
+			else
+			{ /*The default extension of object file is obj for c166.*/
+				output_obj = format("%s.obj", p);
+			}
+			free(p);
 		}
 	}
 
