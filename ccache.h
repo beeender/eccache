@@ -12,7 +12,7 @@
 #endif
 
 #ifndef MYNAME
-#define MYNAME "ccache"
+#define MYNAME "eccache"
 #endif
 
 extern const char CCACHE_VERSION[];
