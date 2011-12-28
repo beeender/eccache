@@ -220,9 +220,15 @@ extern const char* gcc_name[];
 void gcc_init_entry();
 bool gcc_process_args(struct args *orig_args, struct args **preprocessor_args,
                 struct args **compiler_args);
+
 extern const char* c166_name[];
 void c166_init_entry();
 bool c166_process_args(struct args *orig_args, struct args **preprocessor_args,
+                struct args **compiler_args);
+
+extern const char* armcc_name[];
+void armcc_init_entry();
+bool armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
                 struct args **compiler_args);
 
 /* ------------------------------------------------------------------------- */

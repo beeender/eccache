@@ -208,6 +208,7 @@ static const char HASH_PREFIX[] = "3";
 static struct compiler_entry compiler_entries[] = { 
 	{gcc_name, gcc_init_entry, gcc_process_args},
 	{c166_name, c166_init_entry, c166_process_args},
+	{armcc_name, armcc_init_entry, armcc_process_args},
 };
 /* Current compiler entry. 
  * This is determined by the executable compiler file name.*/
