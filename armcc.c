@@ -435,23 +435,6 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		compile_preprocessed_source_code = false;
 	}
 
-	i_extension = getenv("CCACHE_EXTENSION");
-	if (!i_extension) {
-		const char *p_language = p_language_for_language(actual_language);
-		/* Dirty fix for preprocessed file extension for armcc 3.1.
-		 * armcc 3.1 cannot recognize "i" or "ii" as the preprocessed source file even
-		 * with -c99,-c90,cpp. */
-		if (str_eq(p_language, "c++-cpp-output")) { 
-			i_extension = "ii.cpp";
-		}
-		else if (str_eq(p_language, "cpp-output")){ 
-			i_extension = "i.c";
-		}
-		else { 
-			i_extension = extension_for_language(p_language) + 1;
-		}
-	}
-
 	/* don't try to second guess the compilers heuristics for stdout handling */
 	if (output_obj && str_eq(output_obj, "-")) {
 		stats_update(STATS_OUTSTDOUT);
@@ -545,6 +528,20 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		}
 	} else {
 		*compiler_args = args_copy(*preprocessor_args);
+	}
+
+	i_extension = getenv("CCACHE_EXTENSION");
+	if (!i_extension) {
+		const char *p_language = p_language_for_language(actual_language);
+		/* Patch for preprocessed file extension for armcc 3.1.
+		 * armcc 3.1 cannot recognize "i" or "ii" as the preprocessed source file 
+		 * without --compile_all_input. */
+		i_extension = extension_for_language(p_language) + 1;
+
+		args_add(*compiler_args, "--compile_all_input");
+		if (str_eq(p_language, "c++-cpp-output")) { 
+			args_add(*compiler_args, "--cpp");
+		}
 	}
 
 	/*
