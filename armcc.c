@@ -18,16 +18,24 @@ extern const char *i_extension;
 const char* armcc_name[] = {"armcc", NULL};
 
 static const struct compopt armcc_compopts[] = {
-	{"--cpu",           TAKES_ARG},
-	{"--diag_error",    TAKES_ARG},
-	{"--diag_remark",   TAKES_ARG},
-	{"--diag_warning",  TAKES_ARG},
-	{"--feedback", 		TAKES_ARG},/*TODO:Study more about this. This could be TOO_HARD*/
-	{"-C",              AFFECTS_CPP},
-	{"-D",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
-	{"-E",              TOO_HARD},
-	{"-I",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
-	{"-U",              AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
+	{"--apcs",                  TAKES_ARG},
+	{"--arm_linux_conifg_file",	TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
+	{"--asm",                   TOO_HARD}, /* Need handle two output files to support this.*/
+	{"--asm_dir",               TAKES_ARG | TAKES_PATH},
+	{"--brief_diagnostics",     AFFECTS_CPP},
+	{"--bss_threshold",         TAKES_ARG},
+	{"--compatible",            TAKES_ARG},
+	{"--cpu",                   TAKES_ARG},
+	{"--diag_error",            TAKES_ARG},
+	{"--diag_remark",           TAKES_ARG},
+	{"--diag_warning",          TAKES_ARG},
+	{"--feedback", 		        TAKES_ARG},/*TODO:Study more about this. This could be TOO_HARD*/
+	{"--no_code_gen",           TOO_HARD},
+	{"-C",                      AFFECTS_CPP},
+	{"-D",                      AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
+	{"-E",                      TOO_HARD},
+	{"-I",                      AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG | TAKES_PATH},
+	{"-U",                      AFFECTS_CPP | TAKES_ARG | TAKES_CONCAT_ARG},
 };
 
 void armcc_init_entry()
@@ -47,7 +55,6 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	int i;
 	bool found_c_opt = false;
 	bool found_S_opt = false;
-	bool found_arch_opt = false;
 	bool found_pch = false;
 	bool found_fpch_preprocess = false;
 	const char *explicit_language = NULL; /* As specified with -x. */
