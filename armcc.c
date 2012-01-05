@@ -64,8 +64,6 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	bool found_S_opt = false;
 	bool found_pch = false;
 	bool found_fpch_preprocess = false;
-	const char *explicit_language = NULL; /* As specified with -x. */
-	const char *file_language;            /* As deduced from file extension. */
 	const char *actual_language;          /* Language to actually use. */
 	const char *input_charset = NULL;
 	struct stat st;
@@ -77,6 +75,10 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	int argc = orig_args->argc;
 	char **argv = orig_args->argv;
 	bool result = true;
+	/* 0: Choose preprocessor type by the file extension.
+	 * 1: Use c preprocessor.
+	 * 2: Use c++ preprocessor.*/
+	unsigned force_preprocessor_type = 0;
 
 	stripped_args = args_init(0, NULL);
 	dep_args = args_init(0, NULL);
@@ -153,6 +155,16 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 			output_obj = &argv[i][2];
 			continue;
 		}
+
+
+		/* If multiple source type options are there, the armcc will use the last one. */
+		if (str_eq(argv[i], "--cpp")) { 
+			force_preprocessor_type = 2;
+		}
+		else if (str_eq(argv[i], "--c90") || str_eq(argv[i], "--c99")) { 
+			force_preprocessor_type = 1;
+		}
+
 
 		/* debugging is handled specially, so that we know if we
 		   can strip line number info
@@ -395,20 +407,14 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		}
 	}
 
-	if (explicit_language && str_eq(explicit_language, "none")) {
-		explicit_language = NULL;
+	if(force_preprocessor_type == 0) { 
+		actual_language = language_for_file(input_file);
+	} 
+	else if(force_preprocessor_type == 2) { 
+		actual_language = "c++";
 	}
-	file_language = language_for_file(input_file);
-	if (explicit_language) {
-		if (!language_is_supported(explicit_language)) {
-			cc_log("Unsupported language: %s", explicit_language);
-			stats_update(STATS_SOURCELANG);
-			result = false;
-			goto out;
-		}
-		actual_language = explicit_language;
-	} else {
-		actual_language = file_language;
+	else {
+		actual_language = "c";
 	}
 
 	output_is_precompiled_header =
@@ -495,10 +501,6 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	if (found_pch) {
 		args_add(*preprocessor_args, "-fpch-preprocess");
 	}
-	if (explicit_language) {
-		args_add(*preprocessor_args, "-x");
-		args_add(*preprocessor_args, explicit_language);
-	}
 
 	/*
 	 * Add flags for dependency generation only to the preprocessor command line.
@@ -524,15 +526,6 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 
 	if (compile_preprocessed_source_code) {
 		*compiler_args = args_copy(stripped_args);
-		if (explicit_language) {
-			/*
-			 * Workaround for a bug in Apple's patched distcc -- it doesn't properly
-			 * reset the language specified with -x, so if -x is given, we have to
-			 * specify the preprocessed language explicitly.
-			 */
-			args_add(*compiler_args, "-x");
-			args_add(*compiler_args, p_language_for_language(explicit_language));
-		}
 	} else {
 		*compiler_args = args_copy(*preprocessor_args);
 	}
@@ -540,15 +533,15 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	i_extension = getenv("CCACHE_EXTENSION");
 	if (!i_extension) {
 		const char *p_language = p_language_for_language(actual_language);
-		/* Patch for preprocessed file extension for armcc 3.1.
-		 * armcc 3.1 cannot recognize "i" or "ii" as the preprocessed source file 
-		 * without --compile_all_input. */
 		i_extension = extension_for_language(p_language) + 1;
 
-		args_add(*compiler_args, "--compile_all_input");
-		if (str_eq(p_language, "c++-cpp-output")) { 
-			args_add(*compiler_args, "--cpp");
-		}
+	}
+	/* Patch for preprocessed file extension for armcc 3.1.
+	 * armcc 3.1 cannot recognize "i" or "ii" as the preprocessed source file 
+	 * without --compile_all_input. */
+	args_add(*compiler_args, "--compile_all_input");
+	if (str_eq(i_extension, "ii")) { 
+		args_add(*compiler_args, "--cpp");
 	}
 
 	/*

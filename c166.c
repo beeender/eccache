@@ -80,7 +80,6 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 * 1: Use c preprocessor.
 	 * 2: Use c++ preprocessor.*/
 	unsigned force_preprocessor_type = 0;
-	const char *file_language;            /* As deduced from file extension. */
 	const char *actual_language;          /* Language to actually use. */
 	struct stat st;
 	/* is the dependency makefile name overridden with -MF? */
@@ -295,9 +294,8 @@ c166_process_args(struct args *orig_args, struct args **preprocessor_args,
 		goto out;
 	}
 
-	file_language = language_for_file(input_file);
 	if(force_preprocessor_type == 0) { 
-		actual_language = file_language;
+		actual_language = language_for_file(input_file);
 	} 
 	else if(force_preprocessor_type == 2) { 
 		actual_language = "c++";
