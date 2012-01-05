@@ -33,6 +33,9 @@ static const struct compopt armcc_compopts[] = {
 	{"--configure_gcc_version",     TAKES_ARG},
 	{"--configure_sysroot",         TAKES_ARG | TAKES_PATH},
 	{"--cpu",                       TAKES_ARG},
+	{"--create_pch",                TOO_HARD}, /*TODO:Support pch later. */
+	{"--default_definition_visibility",	TAKES_ARG},
+	{"--default_extension",	        TOO_HARD | TAKES_ARG}, /* TODO:Support this later */
 	{"--diag_error",                TAKES_ARG},
 	{"--diag_remark",               TAKES_ARG},
 	{"--diag_warning",              TAKES_ARG},
@@ -160,33 +163,14 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		/* If multiple source type options are there, the armcc will use the last one. */
 		if (str_eq(argv[i], "--cpp")) { 
 			force_preprocessor_type = 2;
+			continue;
 		}
 		else if (str_eq(argv[i], "--c90") || str_eq(argv[i], "--c99")) { 
 			force_preprocessor_type = 1;
-		}
-
-
-		/* debugging is handled specially, so that we know if we
-		   can strip line number info
-		*/
-#if 0
-		if (str_startswith(argv[i], "-g")) {
-			args_add(stripped_args, argv[i]);
-			if (enable_unify && !str_eq(argv[i], "-g0")) {
-				cc_log("%s used; disabling unify mode", argv[i]);
-				enable_unify = false;
-			}
-			if (str_eq(argv[i], "-g3")) {
-				/*
-				 * Fix for bug 7190 ("commandline macros (-D)
-				 * have non-zero lineno when using -g3").
-				 */
-				cc_log("%s used; not compiling preprocessed code", argv[i]);
-				compile_preprocessed_source_code = false;
-			}
 			continue;
 		}
-#endif
+
+
 
 #if 0
 		/* These options require special handling, because they
