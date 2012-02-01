@@ -9,6 +9,10 @@ Documentation
 -------------
 
 
+For rvct:
+1. Dependency file
+The rvct started supporting --depend_target from 4.0. And there is a bug(no STD output) when using -E and --depend together with rvct which version is earlier than 4.0_697. That is too hard to support "--depend" for the earlier version of rvct.
+
 Installation
 ------------
 

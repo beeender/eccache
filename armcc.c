@@ -36,6 +36,7 @@ static const struct compopt armcc_compopts[] = {
 	{"--create_pch",                TOO_HARD}, /*TODO:Support pch later. */
 	{"--default_definition_visibility",	TAKES_ARG},
 	{"--default_extension",	        TOO_HARD | TAKES_ARG}, /* TODO:Support this later */
+	{"--depend_format",             TAKES_ARG},
 	{"--diag_error",                TAKES_ARG},
 	{"--diag_remark",               TAKES_ARG},
 	{"--diag_warning",              TAKES_ARG},
@@ -70,10 +71,9 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	const char *actual_language;          /* Language to actually use. */
 	const char *input_charset = NULL;
 	struct stat st;
-	/* is the dependency makefile name overridden with -MF? */
-	bool dependency_filename_specified = false;
-	/* is the dependency makefile target name specified with -MT or -MQ? */
+	/* is the dependency makefile target name specified ? */
 	bool dependency_target_specified = false;
+	char *dep_file = NULL, *dep_dir = NULL;
 	struct args *stripped_args = NULL, *dep_args = NULL;
 	int argc = orig_args->argc;
 	char **argv = orig_args->argv;
@@ -171,108 +171,51 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 		}
 
 
-
-#if 0
-		/* These options require special handling, because they
-		   behave differently with armcc -E, when the output
-		   file is not specified. */
-		if (str_eq(argv[i], "-MD") || str_eq(argv[i], "-MMD")) {
+		/* The rvct started supporting --depend_target from 4.0.
+		 * And there is a bug when using -E and --depend together with rvct which version is earlier than 4.0_697.
+		 * That is too hard to support "--depend" for the earlier version of rvct.*/
+		if (str_startswith(argv[i], "--depend_dir")) {
+			/* We just concat the dir and the filename and pass the result 
+			 * to --depend. */
+			if (i >= argc - 1) {
+				cc_log("Missing argument to %s", argv[i]);
+				stats_update(STATS_ARGS);
+				result = false;
+				goto out;
+			}
+			dep_dir= argv[i+1];
+			i++;
+			continue;
+		}
+		else if (str_startswith(argv[i], "--depend_target")) 
+		{
+			if (i >= argc - 1) {
+				cc_log("Missing argument to %s", argv[i]);
+				stats_update(STATS_ARGS);
+				result = false;
+				goto out;
+			}
+			dependency_target_specified = true;
+			args_add(dep_args, argv[i]);
+			args_add(dep_args, argv[i+1]);
+			i++;
+			continue;
+		}
+		else if (str_startswith(argv[i], "--depend")) 
+		{
 			generating_dependencies = true;
-			args_add(dep_args, argv[i]);
-			continue;
-		}
-		if (str_startswith(argv[i], "-MF")) {
-			char *arg;
-			dependency_filename_specified = true;
-			free(output_dep);
-			args_add(dep_args, argv[i]);
-			if (strlen(argv[i]) == 3) {
-				/* -MF arg */
-				if (i >= argc - 1) {
-					cc_log("Missing argument to %s", argv[i]);
-					stats_update(STATS_ARGS);
-					result = false;
-					goto out;
-				}
-				arg = argv[i + 1];
-				args_add(dep_args, argv[i + 1]);
-				i++;
-			} else {
-				/* -MFarg */
-				arg = &argv[i][3];
-			}
-			output_dep = make_relative_path(x_strdup(arg));
-			continue;
-		}
-		if (str_startswith(argv[i], "-MQ") || str_startswith(argv[i], "-MT")) {
-			args_add(dep_args, argv[i]);
-			if (strlen(argv[i]) == 3) {
-				/* -MQ arg or -MT arg */
-				if (i >= argc - 1) {
-					cc_log("Missing argument to %s", argv[i]);
-					stats_update(STATS_ARGS);
-					result = false;
-					goto out;
-				}
-				args_add(dep_args, argv[i + 1]);
-				i++;
-				/*
-				 * Yes, that's right. It's strange, but apparently, armcc behaves
-				 * differently for -MT arg and -MTarg (and similar for -MQ): in the
-				 * latter case, but not in the former, an implicit dependency for the
-				 * object file is added to the dependency file.
-				 */
-				dependency_target_specified = true;
-			}
-			continue;
-		}
-		if (str_startswith(argv[i], "--sysroot=")) {
-			char *relpath = make_relative_path(x_strdup(argv[i] + 10));
-			char *option = format("--sysroot=%s", relpath);
-			args_add(stripped_args, option);
-			free(relpath);
-			free(option);
-			continue;
-		}
-		if (str_startswith(argv[i], "-Wp,")) {
-			if (str_startswith(argv[i], "-Wp,-MD,") && !strchr(argv[i] + 8, ',')) {
-				generating_dependencies = true;
-				dependency_filename_specified = true;
-				free(output_dep);
-				output_dep = make_relative_path(x_strdup(argv[i] + 8));
-				args_add(dep_args, argv[i]);
-				continue;
-			} else if (str_startswith(argv[i], "-Wp,-MMD,")
-			           && !strchr(argv[i] + 9, ',')) {
-				generating_dependencies = true;
-				dependency_filename_specified = true;
-				free(output_dep);
-				output_dep = make_relative_path(x_strdup(argv[i] + 9));
-				args_add(dep_args, argv[i]);
-				continue;
-			} else if (enable_direct) {
-				/*
-				 * -Wp, can be used to pass too hard options to
-				 * the preprocessor. Hence, disable direct
-				 * mode.
-				 */
-				cc_log("Unsupported compiler option for direct mode: %s", argv[i]);
-				enable_direct = false;
-			}
-		}
-		if (str_eq(argv[i], "-MP")) {
-			args_add(dep_args, argv[i]);
-			continue;
-		}
-#endif
 
-		/* Input charset needs to be handled specially. */
-#if 0
-		if (str_startswith(argv[i], "-finput-charset=")) {
-			input_charset = argv[i];
+			if (i >= argc - 1) {
+				cc_log("Missing argument to %s", argv[i]);
+				stats_update(STATS_ARGS);
+				result = false;
+				goto out;
+			}
+			dep_file = argv[i + 1];
+			i++;
 			continue;
 		}
-#endif
+
 
 		/*
 		 * Options taking an argument that that we may want to rewrite
@@ -490,22 +433,31 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 * Add flags for dependency generation only to the preprocessor command line.
 	 */
 	if (generating_dependencies) {
-		if (!dependency_filename_specified) {
-			char *default_depfile_name;
-			char *base_name;
-
-			base_name = remove_extension(output_obj);
-			default_depfile_name = format("%s.d", base_name);
-			free(base_name);
-			args_add(dep_args, "-MF");
-			args_add(dep_args, default_depfile_name);
-			output_dep = make_relative_path(x_strdup(default_depfile_name));
-		}
-
+		char *dep_path;
 		if (!dependency_target_specified) {
-			args_add(dep_args, "-MQ");
+			args_add(dep_args, "--depend_target");
 			args_add(dep_args, output_obj);
 		}
+
+		free(output_dep);
+		args_add(dep_args, "--depend");
+		
+		if(dep_dir)
+		{ 
+#ifdef _WIN32
+			dep_path = make_relative_path(format("%s\\%s", dep_dir, dep_file));
+#else
+			dep_path = make_relative_path(format("%s/%s", dep_dir, dep_file));
+#endif
+		}
+		else
+		{ 
+			dep_path = x_strdup(dep_file);
+		}
+
+		args_add(dep_args, dep_path);
+		/* dep_path will be free in make_relative_path */
+		output_dep = make_relative_path(x_strdup(dep_file));
 	}
 
 	if (compile_preprocessed_source_code) {
