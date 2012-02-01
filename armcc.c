@@ -71,6 +71,8 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	const char *actual_language;          /* Language to actually use. */
 	const char *input_charset = NULL;
 	struct stat st;
+	/* is the dependency makefile name overridden with --depend? */
+	bool dependency_filename_specified = false;
 	/* is the dependency makefile target name specified ? */
 	bool dependency_target_specified = false;
 	char *dep_file = NULL, *dep_dir = NULL;
@@ -170,6 +172,10 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 			continue;
 		}
 
+		if (str_eq(argv[i], "--md")) { 
+			generating_dependencies = true;
+			continue;
+		}
 
 		/* The rvct started supporting --depend_target from 4.0.
 		 * And there is a bug when using -E and --depend together with rvct which version is earlier than 4.0_697.
@@ -183,12 +189,11 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 				result = false;
 				goto out;
 			}
-			dep_dir= argv[i+1];
+			dep_dir= x_strdup(argv[i+1]);
 			i++;
 			continue;
 		}
-		else if (str_startswith(argv[i], "--depend_target")) 
-		{
+		else if (str_startswith(argv[i], "--depend_target")) {
 			if (i >= argc - 1) {
 				cc_log("Missing argument to %s", argv[i]);
 				stats_update(STATS_ARGS);
@@ -201,8 +206,8 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 			i++;
 			continue;
 		}
-		else if (str_startswith(argv[i], "--depend")) 
-		{
+		else if (str_startswith(argv[i], "--depend")) {
+			dependency_filename_specified = true;
 			generating_dependencies = true;
 
 			if (i >= argc - 1) {
@@ -211,7 +216,7 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 				result = false;
 				goto out;
 			}
-			dep_file = argv[i + 1];
+			dep_file = x_strdup(argv[i + 1]);
 			i++;
 			continue;
 		}
@@ -434,13 +439,22 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	 */
 	if (generating_dependencies) {
 		char *dep_path;
+
+		if(!dependency_filename_specified)
+		{ 
+			char *base_name;
+
+			base_name = remove_extension(output_obj);
+			dep_file = format("%s.d", base_name);
+			free(base_name);
+		}
+
 		if (!dependency_target_specified) {
 			args_add(dep_args, "--depend_target");
 			args_add(dep_args, output_obj);
 		}
 
 		free(output_dep);
-		args_add(dep_args, "--depend");
 		
 		if(dep_dir)
 		{ 
@@ -455,9 +469,10 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 			dep_path = x_strdup(dep_file);
 		}
 
+		args_add(dep_args, "--depend");
 		args_add(dep_args, dep_path);
 		/* dep_path will be free in make_relative_path */
-		output_dep = make_relative_path(x_strdup(dep_file));
+		output_dep = make_relative_path(x_strdup(dep_path));
 	}
 
 	if (compile_preprocessed_source_code) {
@@ -488,6 +503,8 @@ armcc_process_args(struct args *orig_args, struct args **preprocessor_args,
 	args_extend(*preprocessor_args, dep_args);
 
 out:
+	free(dep_file);
+	free(dep_dir);
 	args_free(stripped_args);
 	args_free(dep_args);
 	return result;
